@@ -133,20 +133,20 @@ impl<'a> Generator<'a> {
     }
 
     fn add_chapter(&mut self, ch: &Chapter) -> Result<(), Error> {
-        let rendered = self.render_chapter(ch)?;
-
-        let content_path = ch.path.as_ref().ok_or_else(|| {
-            Error::ContentFileNotFound(format!(
-                "Content file was not found for Chapter {}",
-                ch.name
-            ))
-        })?;
+        let content_path = match &ch.path {
+            Some(p) => p.to_owned(),
+            None => {
+                info!("Content file was not found for Draft chapter {}", ch.name);
+                return Ok(());
+            }
+        };
         trace!(
             "add a chapter {:?} by a path = {:?}",
             &ch.name,
             content_path
         );
         let path = content_path.with_extension("html").display().to_string();
+        let rendered = self.render_chapter(ch)?;
         let mut content = EpubContent::new(path, rendered.as_bytes()).title(format!("{}", ch));
 
         let level = ch.number.as_ref().map(|n| n.len() as i32 - 1).unwrap_or(0);
