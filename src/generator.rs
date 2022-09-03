@@ -49,6 +49,9 @@ impl<'a> Generator<'a> {
         let mut hbs = Handlebars::new();
         hbs.register_template_string("index", config.template()?)
             .map_err(|_| Error::TemplateParse)?;
+        const BLANK_TEMPLATE: &str = include_str!("blank.hbs");
+        hbs.register_template_string("blank", BLANK_TEMPLATE)
+            .map_err(|_| Error::TemplateParse)?;
 
         Ok(Generator {
             builder,
@@ -133,20 +136,26 @@ impl<'a> Generator<'a> {
     }
 
     fn add_chapter(&mut self, ch: &Chapter) -> Result<(), Error> {
-        let content_path = match &ch.path {
-            Some(p) => p.to_owned(),
+        let (path, rendered) = match &ch.path {
+            Some(ch_path) => {
+                trace!("add a chapter {:?} by a path = {:?}", &ch.name, ch_path);
+                let path = ch_path.with_extension("html").display().to_string();
+                let rendered = self.render_chapter(ch)?;
+                (path, rendered)
+            }
             None => {
-                info!("Content file was not found for Draft chapter {}", ch.name);
-                return Ok(());
+                info!("Content file was not found for the chapter: {}", ch.name);
+                if ch.sub_items.is_empty() {
+                    return Ok(());
+                } else {
+                    // XXX: This trick try to fix the case when draft chapter has sub chapters.
+                    let path = format!("{}.html", sanitize_filename::sanitize(&ch.name));
+                    trace!("add a blank chapter {:?} by a path = {:?}", &ch.name, path);
+                    let rendered = self.hbs.render("blank", &json!({"title": ch.name}))?;
+                    (path, rendered)
+                }
             }
         };
-        trace!(
-            "add a chapter {:?} by a path = {:?}",
-            &ch.name,
-            content_path
-        );
-        let path = content_path.with_extension("html").display().to_string();
-        let rendered = self.render_chapter(ch)?;
         let mut content = EpubContent::new(path, rendered.as_bytes()).title(format!("{}", ch));
 
         let level = ch.number.as_ref().map(|n| n.len() as i32 - 1).unwrap_or(0);
