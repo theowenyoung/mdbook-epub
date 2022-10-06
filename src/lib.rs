@@ -6,9 +6,9 @@ extern crate serde_derive;
 #[macro_use]
 extern crate serde_json;
 
-use handlebars;
 use mdbook::config::Config as MdConfig;
 use mdbook::renderer::RenderContext;
+use mdbook::MDBook;
 use semver::{Version, VersionReq};
 use std::fs::{create_dir_all, File};
 use std::path::{Path, PathBuf};
@@ -125,5 +125,27 @@ pub fn output_filename(dest: &Path, config: &MdConfig) -> PathBuf {
     match config.book.title {
         Some(ref title) => dest.join(title).with_extension("epub"),
         None => dest.join("book.epub"),
+    }
+}
+
+/// Generate an `EPUB` version of the provided book with MDBook preprocessor applied.
+pub fn generate_with_preprocessor(md: &MDBook, dest: &Path) -> Result<(), Error> {
+    let renderer = EpubRenderer(dest.to_path_buf());
+    md.execute_build_process(&renderer)
+        .map_err(|err| err.into())
+}
+
+struct EpubRenderer(PathBuf);
+
+impl mdbook::Renderer for EpubRenderer {
+    fn name(&self) -> &str {
+        "epub"
+    }
+
+    fn render(&self, ctx: &RenderContext) -> mdbook::errors::Result<()> {
+        trace!("ctx={:?}, new dest={:?}", &ctx, &self.0);
+        let mut ctx = ctx.to_owned();
+        ctx.destination = self.0.to_owned();
+        generate(&ctx).map_err(|e| anyhow::anyhow!("Error generating book: {:?}", e))
     }
 }
