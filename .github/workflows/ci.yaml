@@ -24,6 +24,8 @@ jobs:
         run: cargo test --verbose
       - name: Check cargo clippy warnings
         run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+      - name: Install preprocessor
+        run: cargo install mdbook-nocomment
       - name: Run example
         run: cargo run --example build_trpl -- --dest target/book target/book
       - name: Install EPUBCheck
